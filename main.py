@@ -2,8 +2,7 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlmodel import select
 from datetime import datetime, timedelta
-
-import jwt
+from jose import jwt
 
 from os import getenv
 from dotenv import load_dotenv
@@ -22,26 +21,34 @@ ALGORITHM = getenv("JWT_ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 
-@app.post("/token") 
-async def token (form: OAuth2PasswordRequestForm = Depends()): 
-    with Config.SESSION as session: 
+@app.post("/token")
+async def token(form: OAuth2PasswordRequestForm = Depends()):
+    with Config.SESSION as session:
         user = session.exec(select(User).where(User.username == form.username)).first()
-        if user and jwt.decode(user.password, SECRET, algorithms=[ALGORITHM])["password"] == form.password:
-            access_token = jwt.encode({"sub": user.username, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET, algorithm=ALGORITHM)
-            return {"access token": access_token, "token, type": "bearer"}
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dont have such user")
-
+        if user:
+            try:
+                decoded_password = jwt.decode(user.password, SECRET, algorithms=[ALGORITHM])["password"]
+                if decoded_password == form.password:
+                    access_token = jwt.encode(
+                        {"sub": user.username, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)},
+                        SECRET,
+                        algorithm=ALGORITHM
+                    )
+                    return {"access_token": access_token, "token_type": "bearer"}
+            except jwt.ExpiredSignatureError:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
 @app.post("/register")
-async def register(user:User, data: dict):
+async def register(user: User):
+    # Encode password as JWT (INSECURE)
     jwt_token = jwt.encode({"password": user.password}, SECRET, algorithm=ALGORITHM)
     user.password = jwt_token
 
     with Config.SESSION as session:
-        data = user
-        session.add(data)
+        session.add(user)
         session.commit()
-        session.refresh(data)
+        session.refresh(user)
         return user
 
 

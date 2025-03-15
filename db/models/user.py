@@ -1,7 +1,6 @@
-from typing import Optional
+from typing import Optional, List
 from sqlmodel import Relationship, SQLModel, Field
 from pydantic import field_validator, EmailStr
-from . import Ads
 import re
 
 
@@ -10,9 +9,9 @@ class User(SQLModel, table=True):
     username: str
     email: EmailStr
     password: str
-    ads: Ads = Relationship(back_populates="user")
+    ads: List["Ads"] = Relationship(back_populates="user")
 
-    @field_validator("name")
+    @field_validator("username")
     @classmethod
     def name(cls, v):
         if not str(v).isalpha:
