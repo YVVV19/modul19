@@ -41,7 +41,6 @@ async def token(form: OAuth2PasswordRequestForm = Depends()):
 
 @app.post("/register")
 async def register(user: User):
-    # Encode password as JWT (INSECURE)
     jwt_token = jwt.encode({"password": user.password}, SECRET, algorithm=ALGORITHM)
     user.password = jwt_token
 
